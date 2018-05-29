@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdbool.h>
 #include <errno.h>
 #include <err.h>
 
@@ -10,14 +11,18 @@ int main(int argc, char *argv[])
 {
 	int ch;
 	char *file = "/dev/gpiointr0";
+	bool loop = true;
 	int fd;
 	char buffer[1024];
 	ssize_t res;
 
-	while ((ch = getopt(argc, argv, "f:")) != -1) {
+	while ((ch = getopt(argc, argv, "f:s")) != -1) {
 		switch (ch) {
 		case 'f':
 			file = optarg;
+			break;
+		case 's':
+			loop = false;
 			break;
 		default:
 			printf("Invalid usage.");
@@ -31,10 +36,15 @@ int main(int argc, char *argv[])
 	if (fd == -1)
 		err(EXIT_FAILURE, "Cannot open %s", file);
 
-	res = read(fd, buffer, sizeof(buffer));
-	if(res < 0)
-		err(EXIT_FAILURE, "Cannot read from %s", file);
+	do {
 
-	printf("%s: Read %i bytes from %s\n", getprogname(), res, file);
+		res = read(fd, buffer, sizeof(buffer));
+		if(res < 0)
+			err(EXIT_FAILURE, "Cannot read from %s", file);
+
+		printf("%s: Read %i bytes from %s\n", getprogname(), res, file);
+
+	} while (loop);
+
 	return EXIT_SUCCESS;
 }
