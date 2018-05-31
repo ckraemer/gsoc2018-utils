@@ -7,6 +7,11 @@
 #include <errno.h>
 #include <err.h>
 
+void usage()
+{
+	fprintf(stderr, "usage: %s [-f gpiointrdev] [-s]\n", getprogname());
+}
+
 int main(int argc, char *argv[])
 {
 	int ch;
@@ -25,7 +30,7 @@ int main(int argc, char *argv[])
 			loop = false;
 			break;
 		default:
-			printf("Invalid usage.");
+			usage();
 			return EXIT_FAILURE;
 		}
 	}

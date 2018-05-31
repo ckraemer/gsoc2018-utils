@@ -10,6 +10,18 @@
 #include <sys/ioctl.h>
 #include <sys/gpio.h>
 
+void usage()
+{
+	fprintf(stderr, "Usage: %s [-f gpiointrdev] pin intr-config\n\n", getprogname());
+	fprintf(stderr, "Possible options for intr-config:\n\n");
+	fprintf(stderr, "no\tno interrupt\n");
+	fprintf(stderr, "ll\t level low\n");
+	fprintf(stderr, "lh\t level high\n");
+	fprintf(stderr, "er\t edge rising\n");
+	fprintf(stderr, "ef\t edge falling\n");
+	fprintf(stderr, "eb\t edge both\n");
+}
+
 int main(int argc, char *argv[])
 {
 	int ch;
@@ -24,32 +36,36 @@ int main(int argc, char *argv[])
 			file = optarg;
 			break;
 		default:
-			printf("%s: Invalid argument.", getprogname());
+			usage();
 			return EXIT_FAILURE;
-			break;
 		}
 	}
 	argv += optind;
 	argc -= optind;
 
 	if (argc == 0) {
-		printf("%s: No pin number specified.\n", getprogname());
+		fprintf(stderr, "%s: No pin number specified.\n", getprogname());
+		usage();
 		return EXIT_FAILURE;
 	}
 
 	errno = 0;
 	intr_config.gp_pin = strtol(argv[0], NULL, 10);
-	if (errno != 0)
-		err(EXIT_FAILURE, "Invalid pin number");
-
+	if (errno != 0) {
+		warn("Invalid pin number");
+		usage();
+		return EXIT_FAILURE;
+	}
 
 	if (argc == 1) {
-		printf("%s: No trigger type specified.\n", getprogname());
+		fprintf(stderr, "%s: No trigger type specified.\n", getprogname());
+		usage();
 		return EXIT_FAILURE;
 	}
 
 	if (strnlen(argv[1], 2) < 2) {
-		printf("%s: Invalid trigger type (argument too short).\n", getprogname());
+		fprintf(stderr, "%s: Invalid trigger type (argument too short).\n", getprogname());
+		usage();
 		return EXIT_FAILURE;
 	}
 
@@ -73,7 +89,8 @@ int main(int argc, char *argv[])
 			intr_config.gp_intr_flags = GPIO_INTR_EDGE_BOTH;
 			break;
 		default:
-			printf("%s: Invalid trigger type.\n", getprogname());
+			fprintf(stderr, "%s: Invalid trigger type.\n", getprogname());
+			usage();
 			return EXIT_FAILURE;
 	}
 
