@@ -6,9 +6,13 @@
 
 #include <libgpio.h>
 
+#include "pcg_variants.h"
+
+#include "rngtestparam.h"
+
 void usage()
 {
-	fprintf(stderr, "usage: %s [-f gpiointrdev] pin\n", getprogname());
+	fprintf(stderr, "usage: %s [-f gpioctldev] pin\n", getprogname());
 }
 
 int main(int argc, char *argv[])
@@ -16,6 +20,7 @@ int main(int argc, char *argv[])
 	int ch;
 	char *file = "/dev/gpioc0";
 	int errno;
+	pcg32_random_t rng;
 	uint32_t rand_buffer;
 	gpio_handle_t handle;
 	gpio_pin_t pin;
@@ -52,16 +57,18 @@ int main(int argc, char *argv[])
 	if (handle == -1)
 		err(EXIT_FAILURE, "Cannot open %s", file);
 
+	pcg32_srandom_r(&rng, SEED1, SEED2);
+
 	for (;;) {
 
-		rand_buffer = arc4random();
+		rand_buffer = pcg32_random_r(&rng);
 
 		for(int i = 0; i <= 31; i++) {
 			value = (rand_buffer & 1) ? GPIO_VALUE_LOW : GPIO_VALUE_HIGH;
 			rand_buffer >>= 1;
 			gpio_pin_set(handle, pin, value);
 			printf("%s: pin %d on %s -> %d\n", getprogname(), pin, file, value);
-			usleep(500000);
+			usleep(DELAY);
 		}
 
 	}
