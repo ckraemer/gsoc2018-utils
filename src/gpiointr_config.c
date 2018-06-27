@@ -11,6 +11,8 @@
 #include <sys/ioctl.h>
 #include <sys/gpio.h>
 
+#include <libgpio.h>
+
 void usage()
 {
 	fprintf(stderr, "Usage: %s [-f gpiointrdev] pin intr-config\n", getprogname());
@@ -29,9 +31,9 @@ int main(int argc, char *argv[])
 	int ch;
 	bool set_config = true;
 	char *file = "/dev/gpiointr0";
-	int fd;
+	int handle;
 	int res;
-	struct gpio_intr_config intr_config;
+	gpio_intr_config_t intr_config;
 
 	while ((ch = getopt(argc, argv, "gf:")) != -1) {
 		switch (ch) {
@@ -56,7 +58,7 @@ int main(int argc, char *argv[])
 	}
 
 	errno = 0;
-	intr_config.gp_pin = strtol(argv[0], NULL, 10);
+	intr_config.g_pin = strtol(argv[0], NULL, 10);
 	if (errno != 0) {
 		warn("Invalid pin number");
 		usage();
@@ -79,22 +81,22 @@ int main(int argc, char *argv[])
 
 		switch((argv[1][0] << 8) + argv[1][1]) {
 			case ('n' << 8) + 'o':
-				intr_config.gp_intr_flags = GPIO_INTR_NONE;
+				intr_config.g_intr_flags = GPIO_INTR_NONE;
 				break;
 			case ('l' << 8) + 'l':
-				intr_config.gp_intr_flags = GPIO_INTR_LEVEL_LOW;
+				intr_config.g_intr_flags = GPIO_INTR_LEVEL_LOW;
 				break;
 			case ('l' << 8) + 'h':
-				intr_config.gp_intr_flags = GPIO_INTR_LEVEL_HIGH;
+				intr_config.g_intr_flags = GPIO_INTR_LEVEL_HIGH;
 				break;
 			case ('e' << 8) + 'r':
-				intr_config.gp_intr_flags = GPIO_INTR_EDGE_RISING;
+				intr_config.g_intr_flags = GPIO_INTR_EDGE_RISING;
 				break;
 			case ('e' << 8) + 'f':
-				intr_config.gp_intr_flags = GPIO_INTR_EDGE_FALLING;
+				intr_config.g_intr_flags = GPIO_INTR_EDGE_FALLING;
 				break;
 			case ('e' << 8) + 'b':
-				intr_config.gp_intr_flags = GPIO_INTR_EDGE_BOTH;
+				intr_config.g_intr_flags = GPIO_INTR_EDGE_BOTH;
 				break;
 			default:
 				fprintf(stderr, "%s: Invalid trigger type.\n", getprogname());
@@ -104,25 +106,25 @@ int main(int argc, char *argv[])
 
 	}
 
-	fd = open(file, O_RDONLY);
-	if(fd == -1)
+	handle = gpio_intr_open_device(file);
+	if(handle == GPIO_INVALID_HANDLE)
 		err(EXIT_FAILURE, "Cannot open %s", file);
 
 	if (set_config) {
 
-		res = ioctl(fd, GPIOINTRSETCONFIG, &intr_config);
+		res = gpio_intr_pin_set_flags(handle, &intr_config);
 		if(res < 0)
-			err(EXIT_FAILURE, "configuration of pin %d on %s failed", intr_config.gp_pin, file);
+			err(EXIT_FAILURE, "configuration of pin %d on %s failed", intr_config.g_pin, file);
 
-		printf("%s: pin %d on %s successfully configured\n", getprogname(), intr_config.gp_pin, file);
+		printf("%s: pin %d on %s successfully configured\n", getprogname(), intr_config.g_pin, file);
 		return EXIT_SUCCESS;
 
 	} else {
-		res = ioctl(fd, GPIOINTRGETCONFIG, &intr_config);
+		res = gpio_intr_pin_config(handle, &intr_config);
 		if(res < 0)
-			err(EXIT_FAILURE, "retrieving configuration of pin %d on %s failed", intr_config.gp_pin, file);
+			err(EXIT_FAILURE, "retrieving configuration of pin %d on %s failed", intr_config.g_pin, file);
 
-		printf("%s: pin %d on %s flags: %#010x\n", getprogname(), intr_config.gp_pin, file, intr_config.gp_intr_flags);
+		printf("%s: pin %d on %s flags: %#010x\n", getprogname(), intr_config.g_pin, file, intr_config.g_intr_flags);
 		return EXIT_SUCCESS;
 	}
 
