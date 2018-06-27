@@ -26,6 +26,25 @@ void usage()
 	fprintf(stderr, "eb\t edge both\n");
 }
 
+static const char*
+gpiointr_intr_mode_to_str(uint32_t intr_mode)
+{
+	switch (intr_mode) {
+	case GPIO_INTR_LEVEL_LOW:
+		return "low level";
+	case GPIO_INTR_LEVEL_HIGH:
+		return "high level";
+	case GPIO_INTR_EDGE_RISING:
+		return "rising edge";
+	case GPIO_INTR_EDGE_FALLING:
+		return "falling edge";
+	case GPIO_INTR_EDGE_BOTH:
+		return "both edges";
+	default:
+		return "invalid mode";
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	int ch;
@@ -124,7 +143,7 @@ int main(int argc, char *argv[])
 		if(res < 0)
 			err(EXIT_FAILURE, "retrieving configuration of pin %d on %s failed", intr_config.g_pin, file);
 
-		printf("%s: pin %d on %s flags: %#010x\n", getprogname(), intr_config.g_pin, file, intr_config.g_intr_flags);
+		printf("%s: pin %d of %s is configured on %s\n", getprogname(), intr_config.g_pin, file, gpiointr_intr_mode_to_str(intr_config.g_intr_flags));
 		return EXIT_SUCCESS;
 	}
 
