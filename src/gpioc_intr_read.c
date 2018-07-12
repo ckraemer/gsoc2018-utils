@@ -11,7 +11,7 @@
 
 void usage()
 {
-	fprintf(stderr, "usage: %s [-f gpiointrdev] [-s] pin intr-config\n\n", getprogname());
+	fprintf(stderr, "usage: %s [-f ctldev] [-s] pin intr-config\n\n", getprogname());
 	fprintf(stderr, "Possible options for intr-config:\n\n");
 	fprintf(stderr, "no\tno interrupt\n");
 	fprintf(stderr, "ll\t level low\n");
@@ -42,12 +42,12 @@ static const char* intr_mode_to_str(uint32_t intr_mode)
 int main(int argc, char *argv[])
 {
 	int ch;
-	char *file = "/dev/gpiointr0";
+	char *file = "/dev/gpioc0";
 	bool loop = true;
 	int handle;
 	char buffer[1024];
 	ssize_t res;
-	gpio_intr_config_t intr_config;
+	gpio_config_t pin_config;
 
 	while ((ch = getopt(argc, argv, "f:s")) != -1) {
 		switch (ch) {
@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
 	}
 
 	errno = 0;
-	intr_config.g_pin = strtol(argv[0], NULL, 10);
+	pin_config.g_pin = strtol(argv[0], NULL, 10);
 	if (errno != 0) {
 		warn("Invalid pin number");
 		usage();
@@ -93,22 +93,22 @@ int main(int argc, char *argv[])
 
 	switch((argv[1][0] << 8) + argv[1][1]) {
 	case ('n' << 8) + 'o':
-		intr_config.g_intr_flags = GPIO_INTR_NONE;
+		pin_config.g_flags = GPIO_INTR_NONE;
 		break;
 	case ('l' << 8) + 'l':
-		intr_config.g_intr_flags = GPIO_INTR_LEVEL_LOW;
+		pin_config.g_flags = GPIO_INTR_LEVEL_LOW;
 		break;
 	case ('l' << 8) + 'h':
-		intr_config.g_intr_flags = GPIO_INTR_LEVEL_HIGH;
+		pin_config.g_flags = GPIO_INTR_LEVEL_HIGH;
 		break;
 	case ('e' << 8) + 'r':
-		intr_config.g_intr_flags = GPIO_INTR_EDGE_RISING;
+		pin_config.g_flags = GPIO_INTR_EDGE_RISING;
 		break;
 	case ('e' << 8) + 'f':
-		intr_config.g_intr_flags = GPIO_INTR_EDGE_FALLING;
+		pin_config.g_flags = GPIO_INTR_EDGE_FALLING;
 		break;
 	case ('e' << 8) + 'b':
-		intr_config.g_intr_flags = GPIO_INTR_EDGE_BOTH;
+		pin_config.g_flags = GPIO_INTR_EDGE_BOTH;
 		break;
 	default:
 		fprintf(stderr, "%s: Invalid trigger type.\n", getprogname());
@@ -116,13 +116,15 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 
-	handle = gpio_intr_open_device(file);
+	pin_config.g_flags |= GPIO_PIN_INPUT | GPIO_PIN_PULLUP;
+
+	handle = gpio_open_device(file);
 	if(handle == GPIO_INVALID_HANDLE)
 		err(EXIT_FAILURE, "Cannot open %s", file);
 
-	res = gpio_intr_pin_set_flags(handle, &intr_config);
+	res = gpio_pin_set_flags(handle, &pin_config);
 	if(res < 0)
-		err(EXIT_FAILURE, "configuration of pin %d on %s failed", intr_config.g_pin, file);
+		err(EXIT_FAILURE, "configuration of pin %d on %s failed", pin_config.g_pin, file);
 
 	do {
 
