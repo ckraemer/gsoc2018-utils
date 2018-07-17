@@ -11,7 +11,7 @@
 
 void usage()
 {
-	fprintf(stderr, "usage: %s [-f ctldev] [-s] pin intr-config\n\n", getprogname());
+	fprintf(stderr, "usage: %s [-f ctldev] [-s] pin intr-config [pin intr-config ...]\n\n", getprogname());
 	fprintf(stderr, "Possible options for intr-config:\n\n");
 	fprintf(stderr, "no\tno interrupt\n");
 	fprintf(stderr, "ll\t level low\n");
@@ -71,60 +71,70 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 
-	errno = 0;
-	pin_config.g_pin = strtol(argv[0], NULL, 10);
-	if (errno != 0) {
-		warn("Invalid pin number");
-		usage();
-		return EXIT_FAILURE;
-	}
-
 	if (argc == 1) {
 		fprintf(stderr, "%s: No trigger type specified.\n", getprogname());
 		usage();
 		return EXIT_FAILURE;
 	}
 
-	if (strnlen(argv[1], 2) < 2) {
-		fprintf(stderr, "%s: Invalid trigger type (argument too short).\n", getprogname());
+	if (argc % 2 == 1) {
+		fprintf(stderr, "%s: Invalid number of pin intr-conf pairs.\n", getprogname());
 		usage();
 		return EXIT_FAILURE;
 	}
-
-	switch((argv[1][0] << 8) + argv[1][1]) {
-	case ('n' << 8) + 'o':
-		pin_config.g_flags = GPIO_INTR_NONE;
-		break;
-	case ('l' << 8) + 'l':
-		pin_config.g_flags = GPIO_INTR_LEVEL_LOW;
-		break;
-	case ('l' << 8) + 'h':
-		pin_config.g_flags = GPIO_INTR_LEVEL_HIGH;
-		break;
-	case ('e' << 8) + 'r':
-		pin_config.g_flags = GPIO_INTR_EDGE_RISING;
-		break;
-	case ('e' << 8) + 'f':
-		pin_config.g_flags = GPIO_INTR_EDGE_FALLING;
-		break;
-	case ('e' << 8) + 'b':
-		pin_config.g_flags = GPIO_INTR_EDGE_BOTH;
-		break;
-	default:
-		fprintf(stderr, "%s: Invalid trigger type.\n", getprogname());
-		usage();
-		return EXIT_FAILURE;
-	}
-
-	pin_config.g_flags |= GPIO_PIN_INPUT | GPIO_PIN_PULLUP;
 
 	handle = gpio_open_device(file);
 	if(handle == GPIO_INVALID_HANDLE)
 		err(EXIT_FAILURE, "Cannot open %s", file);
 
-	res = gpio_pin_set_flags(handle, &pin_config);
-	if(res < 0)
-		err(EXIT_FAILURE, "configuration of pin %d on %s failed", pin_config.g_pin, file);
+	for (int i = 0; i <= argc - 2; i += 2) {
+
+		errno = 0;
+		pin_config.g_pin = strtol(argv[i], NULL, 10);
+		if (errno != 0) {
+			warn("Invalid pin number");
+			usage();
+			return EXIT_FAILURE;
+		}
+
+		if (strnlen(argv[i + 1], 2) < 2) {
+			fprintf(stderr, "%s: Invalid trigger type (argument too short).\n", getprogname());
+			usage();
+			return EXIT_FAILURE;
+		}
+
+		switch((argv[i + 1][0] << 8) + argv[i + 1][1]) {
+		case ('n' << 8) + 'o':
+			pin_config.g_flags = GPIO_INTR_NONE;
+			break;
+		case ('l' << 8) + 'l':
+			pin_config.g_flags = GPIO_INTR_LEVEL_LOW;
+			break;
+		case ('l' << 8) + 'h':
+			pin_config.g_flags = GPIO_INTR_LEVEL_HIGH;
+			break;
+		case ('e' << 8) + 'r':
+			pin_config.g_flags = GPIO_INTR_EDGE_RISING;
+			break;
+		case ('e' << 8) + 'f':
+			pin_config.g_flags = GPIO_INTR_EDGE_FALLING;
+			break;
+		case ('e' << 8) + 'b':
+			pin_config.g_flags = GPIO_INTR_EDGE_BOTH;
+			break;
+		default:
+			fprintf(stderr, "%s: Invalid trigger type.\n", getprogname());
+			usage();
+			return EXIT_FAILURE;
+		}
+
+		pin_config.g_flags |= GPIO_PIN_INPUT | GPIO_PIN_PULLUP;
+
+		res = gpio_pin_set_flags(handle, &pin_config);
+		if(res < 0)
+			err(EXIT_FAILURE, "configuration of pin %d on %s failed (flags=%d)", pin_config.g_pin, file, pin_config.g_flags);
+
+	}
 
 	do {
 
