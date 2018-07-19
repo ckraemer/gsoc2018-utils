@@ -11,7 +11,9 @@
 
 void usage()
 {
-	fprintf(stderr, "usage: %s [-f ctldev] [-s] pin intr-config [pin intr-config ...]\n\n", getprogname());
+	fprintf(stderr, "usage: %s [-f ctldev] [-m method] [-s] pin intr-config [pin intr-config ...]\n\n", getprogname());
+	fprintf(stderr, "Possible options for method:\n\n");
+	fprintf(stderr, "r\tread (default)\n\n");
 	fprintf(stderr, "Possible options for intr-config:\n\n");
 	fprintf(stderr, "no\tno interrupt\n");
 	fprintf(stderr, "ll\t level low\n");
@@ -39,20 +41,37 @@ static const char* intr_mode_to_str(uint32_t intr_mode)
 	}
 }
 
+void run_read(bool loop, int handle, char *file, char *buffer)
+{
+	ssize_t res;
+
+	do {
+		res = read(handle, buffer, sizeof(buffer));
+		if(res < 0)
+			err(EXIT_FAILURE, "Cannot read from %s", file);
+
+		printf("%s: Read %i bytes from %s\n", getprogname(), res, file);
+	} while (loop);
+}
+
 int main(int argc, char *argv[])
 {
 	int ch;
 	char *file = "/dev/gpioc0";
+	char method = 'r';
 	bool loop = true;
 	int handle;
 	char buffer[1024];
-	ssize_t res;
+	int res;
 	gpio_config_t pin_config;
 
-	while ((ch = getopt(argc, argv, "f:s")) != -1) {
+	while ((ch = getopt(argc, argv, "f:m:s")) != -1) {
 		switch (ch) {
 		case 'f':
 			file = optarg;
+			break;
+		case 'm':
+			method = optarg[0];
 			break;
 		case 's':
 			loop = false;
@@ -136,15 +155,14 @@ int main(int argc, char *argv[])
 
 	}
 
-	do {
-
-		res = read(handle, buffer, sizeof(buffer));
-		if(res < 0)
-			err(EXIT_FAILURE, "Cannot read from %s", file);
-
-		printf("%s: Read %i bytes from %s\n", getprogname(), res, file);
-
-	} while (loop);
+	switch (method) {
+	case 'r':
+		run_read(loop, handle, file, buffer);
+	default:
+		fprintf(stderr, "%s: Unknown method.\n", getprogname());
+		usage();
+		return EXIT_FAILURE;
+	}
 
 	return EXIT_SUCCESS;
 }
