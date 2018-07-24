@@ -94,13 +94,20 @@ void print_events(short event)
 void run_read(bool loop, int handle, char *file, char *buffer)
 {
 	ssize_t res;
+	uint32_t pin;
 
 	do {
 		res = read(handle, buffer, sizeof(buffer));
 		if(res < 0)
 			err(EXIT_FAILURE, "Cannot read from %s", file);
 
-		printf("%s: Read %i bytes from %s\n", getprogname(), res, file);
+		if(res == sizeof(pin)) {
+			/* Assuming little-endian */
+			pin = (uint32_t)buffer[3] << 24 | (uint32_t)buffer[2] << 16 | (uint32_t)buffer[1] << 8  | (uint32_t)buffer[0];
+			printf("%s: Interrupt on pin %d of %s\n", getprogname(), pin, file);
+		} else {
+			printf("%s: Read %i bytes from %s\n", getprogname(), res, file);
+		}
 	} while (loop);
 }
 
