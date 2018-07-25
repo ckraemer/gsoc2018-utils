@@ -13,9 +13,11 @@
 
 #include <libgpio.h>
 
-void usage()
+void
+usage()
 {
-	fprintf(stderr, "usage: %s [-f ctldev] [-m method] [-s] [-t timeout] pin intr-config [pin intr-config ...]\n\n", getprogname());
+	fprintf(stderr, "usage: %s [-f ctldev] [-m method] [-s] [-t timeout] "
+	    "pin intr-config [pin intr-config ...]\n\n", getprogname());
 	fprintf(stderr, "Possible options for method:\n\n");
 	fprintf(stderr, "r\tread (default)\n");
 	fprintf(stderr, "p\tpoll\n");
@@ -29,7 +31,8 @@ void usage()
 	fprintf(stderr, "eb\t edge both\n");
 }
 
-static const char* intr_mode_to_str(uint32_t intr_mode)
+static const char*
+intr_mode_to_str(uint32_t intr_mode)
 {
 	switch (intr_mode) {
 	case GPIO_INTR_LEVEL_LOW:
@@ -47,7 +50,8 @@ static const char* intr_mode_to_str(uint32_t intr_mode)
 	}
 }
 
-static const char *poll_event_to_str(short event)
+static const char*
+poll_event_to_str(short event)
 {
 	switch (event) {
 	case POLLIN:
@@ -75,7 +79,8 @@ static const char *poll_event_to_str(short event)
 	}
 }
 
-void print_events(short event)
+void
+print_events(short event)
 {
 	short curr_event = 0;
 	bool first = true;
@@ -93,27 +98,34 @@ void print_events(short event)
 	}
 }
 
-void run_read(bool loop, int handle, char *file, char *buffer)
+void
+run_read(bool loop, int handle, char *file, char *buffer)
 {
 	ssize_t res;
 	uint32_t pin;
 
 	do {
 		res = read(handle, buffer, sizeof(buffer));
-		if(res < 0)
+		if (res < 0)
 			err(EXIT_FAILURE, "Cannot read from %s", file);
 
-		if(res == sizeof(pin)) {
+		if (res == sizeof(pin)) {
 			/* Assuming little-endian */
-			pin = (uint32_t)buffer[3] << 24 | (uint32_t)buffer[2] << 16 | (uint32_t)buffer[1] << 8  | (uint32_t)buffer[0];
-			printf("%s: Interrupt on pin %d of %s\n", getprogname(), pin, file);
+			pin = (uint32_t)buffer[3] << 24 |
+			    (uint32_t)buffer[2] << 16 |
+			    (uint32_t)buffer[1] << 8 |
+			    (uint32_t)buffer[0];
+			printf("%s: Interrupt on pin %d of %s\n", getprogname(),
+			    pin, file);
 		} else {
-			printf("%s: Read %i bytes from %s\n", getprogname(), res, file);
+			printf("%s: Read %i bytes from %s\n", getprogname(),
+			    res, file);
 		}
 	} while (loop);
 }
 
-void run_poll(bool loop, int handle, char *file, int timeout)
+void
+run_poll(bool loop, int handle, char *file, int timeout)
 {
 	struct pollfd fds;
 	int res;
@@ -127,19 +139,23 @@ void run_poll(bool loop, int handle, char *file, int timeout)
 		if (res < 0) {
 			err(EXIT_FAILURE, "Cannot poll() %s", file);
 		} else if (res == 0) {
-			printf("%s: poll() timed out on %s\n", getprogname(), file);
+			printf("%s: poll() timed out on %s\n", getprogname(),
+			    file);
 		} else {
-			printf("%s: poll() returned %i (revents: ", getprogname(), res);
+			printf("%s: poll() returned %i (revents: ",
+			    getprogname(), res);
 			print_events(fds.revents);
 			printf(") on %s\n", file);
 			if (fds.revents & (POLLHUP | POLLERR)) {
-				err(EXIT_FAILURE, "Recieved POLLHUP or POLLERR on %s", file);
+				err(EXIT_FAILURE, "Recieved POLLHUP or POLLERR "
+				    "on %s", file);
 			}
 		}
 	} while (loop);
 }
 
-void run_select(bool loop, int handle, char *file, int timeout)
+void
+run_select(bool loop, int handle, char *file, int timeout)
 {
 	fd_set readfds;
 	struct timeval tv;
@@ -161,14 +177,17 @@ void run_select(bool loop, int handle, char *file, int timeout)
 		if (res < 0) {
 			err(EXIT_FAILURE, "Cannot select() %s", file);
 		} else if (res == 0) {
-			printf("%s: select() timed out on %s\n", getprogname(), file);
+			printf("%s: select() timed out on %s\n", getprogname(),
+			    file);
 		} else {
-			printf("%s: select() returned %i on %s\n", getprogname(), res, file);
+			printf("%s: select() returned %i on %s\n",
+			    getprogname(), res, file);
 		}
 	} while (loop);
 }
 
-int main(int argc, char *argv[])
+int
+main(int argc, char *argv[])
 {
 	int ch;
 	char *file = "/dev/gpioc0";
@@ -209,25 +228,28 @@ int main(int argc, char *argv[])
 	argc -= optind;
 
 	if (argc == 0) {
-		fprintf(stderr, "%s: No pin number specified.\n", getprogname());
+		fprintf(stderr, "%s: No pin number specified.\n",
+		    getprogname());
 		usage();
 		return EXIT_FAILURE;
 	}
 
 	if (argc == 1) {
-		fprintf(stderr, "%s: No trigger type specified.\n", getprogname());
+		fprintf(stderr, "%s: No trigger type specified.\n",
+		    getprogname());
 		usage();
 		return EXIT_FAILURE;
 	}
 
 	if (argc % 2 == 1) {
-		fprintf(stderr, "%s: Invalid number of pin intr-conf pairs.\n", getprogname());
+		fprintf(stderr, "%s: Invalid number of pin intr-conf pairs.\n",
+		    getprogname());
 		usage();
 		return EXIT_FAILURE;
 	}
 
 	handle = gpio_open_device(file);
-	if(handle == GPIO_INVALID_HANDLE)
+	if (handle == GPIO_INVALID_HANDLE)
 		err(EXIT_FAILURE, "Cannot open %s", file);
 
 	for (int i = 0; i <= argc - 2; i += 2) {
@@ -241,7 +263,8 @@ int main(int argc, char *argv[])
 		}
 
 		if (strnlen(argv[i + 1], 2) < 2) {
-			fprintf(stderr, "%s: Invalid trigger type (argument too short).\n", getprogname());
+			fprintf(stderr, "%s: Invalid trigger type (argument "
+			    "too short).\n", getprogname());
 			usage();
 			return EXIT_FAILURE;
 		}
@@ -266,18 +289,19 @@ int main(int argc, char *argv[])
 			pin_config.g_flags = GPIO_INTR_EDGE_BOTH;
 			break;
 		default:
-			fprintf(stderr, "%s: Invalid trigger type.\n", getprogname());
+			fprintf(stderr, "%s: Invalid trigger type.\n",
+			    getprogname());
 			usage();
 			return EXIT_FAILURE;
 		}
 
 		pin_config.g_flags |= GPIO_PIN_INPUT | GPIO_PIN_PULLUP;
 
-
 		res = gpio_pin_set_flags(handle, &pin_config);
-		if(res < 0)
-			err(EXIT_FAILURE, "configuration of pin %d on %s failed (flags=%d)", pin_config.g_pin, file, pin_config.g_flags);
-
+		if (res < 0)
+			err(EXIT_FAILURE, "configuration of pin %d on %s "
+			    "failed (flags=%d)", pin_config.g_pin, file,
+			    pin_config.g_flags);
 	}
 
 	switch (method) {
