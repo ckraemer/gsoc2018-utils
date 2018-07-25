@@ -99,9 +99,10 @@ print_events(short event)
 }
 
 void
-run_read(bool loop, int handle, char *file, char *buffer)
+run_read(bool loop, int handle, char *file)
 {
 	ssize_t res;
+	char buffer[1024];
 	uint32_t pin;
 
 	do {
@@ -150,6 +151,7 @@ run_poll(bool loop, int handle, char *file, int timeout)
 				err(EXIT_FAILURE, "Recieved POLLHUP or POLLERR "
 				    "on %s", file);
 			}
+			run_read(false, handle, file);
 		}
 	} while (loop);
 }
@@ -182,6 +184,7 @@ run_select(bool loop, int handle, char *file, int timeout)
 		} else {
 			printf("%s: select() returned %i on %s\n",
 			    getprogname(), res, file);
+			run_read(false, handle, file);
 		}
 	} while (loop);
 }
@@ -195,7 +198,6 @@ main(int argc, char *argv[])
 	bool loop = true;
 	int timeout = INFTIM;
 	int handle;
-	char buffer[1024];
 	int res;
 	gpio_config_t pin_config;
 
@@ -306,7 +308,7 @@ main(int argc, char *argv[])
 
 	switch (method) {
 	case 'r':
-		run_read(loop, handle, file, buffer);
+		run_read(loop, handle, file);
 	case 'p':
 		run_poll(loop, handle, file, timeout);
 	case 's':
