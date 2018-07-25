@@ -9,6 +9,7 @@
 #include <err.h>
 
 #include <sys/poll.h>
+#include <sys/select.h>
 
 #include <libgpio.h>
 
@@ -17,7 +18,8 @@ void usage()
 	fprintf(stderr, "usage: %s [-f ctldev] [-m method] [-s] [-t timeout] pin intr-config [pin intr-config ...]\n\n", getprogname());
 	fprintf(stderr, "Possible options for method:\n\n");
 	fprintf(stderr, "r\tread (default)\n");
-	fprintf(stderr, "p\tpoll\n\n");
+	fprintf(stderr, "p\tpoll\n");
+	fprintf(stderr, "s\tselect\n\n");
 	fprintf(stderr, "Possible options for intr-config:\n\n");
 	fprintf(stderr, "no\tno interrupt\n");
 	fprintf(stderr, "ll\t level low\n");
@@ -133,6 +135,35 @@ void run_poll(bool loop, int handle, char *file, int timeout)
 			if (fds.revents & (POLLHUP | POLLERR)) {
 				err(EXIT_FAILURE, "Recieved POLLHUP or POLLERR on %s", file);
 			}
+		}
+	} while (loop);
+}
+
+void run_select(bool loop, int handle, char *file, int timeout)
+{
+	fd_set readfds;
+	struct timeval tv;
+	struct timeval *tv_ptr;
+	int res;
+
+	FD_ZERO(&readfds);
+	FD_SET(handle, &readfds);
+	if (timeout != INFTIM) {
+		tv.tv_sec = timeout / 1000;
+		tv.tv_usec = (timeout % 1000) * 1000;
+		tv_ptr = &tv;
+	} else {
+		tv_ptr = NULL;
+	}
+
+	do {
+		res = select(FD_SETSIZE, &readfds, NULL, NULL, tv_ptr);
+		if (res < 0) {
+			err(EXIT_FAILURE, "Cannot select() %s", file);
+		} else if (res == 0) {
+			printf("%s: select() timed out on %s\n", getprogname(), file);
+		} else {
+			printf("%s: select() returned %i on %s\n", getprogname(), res, file);
 		}
 	} while (loop);
 }
@@ -254,6 +285,8 @@ int main(int argc, char *argv[])
 		run_read(loop, handle, file, buffer);
 	case 'p':
 		run_poll(loop, handle, file, timeout);
+	case 's':
+		run_select(loop, handle, file, timeout);
 	default:
 		fprintf(stderr, "%s: Unknown method.\n", getprogname());
 		usage();
