@@ -10,6 +10,7 @@
 
 #include <sys/poll.h>
 #include <sys/select.h>
+#include <sys/event.h>
 
 #include <libgpio.h>
 
@@ -21,7 +22,8 @@ usage()
 	fprintf(stderr, "Possible options for method:\n\n");
 	fprintf(stderr, "r\tread (default)\n");
 	fprintf(stderr, "p\tpoll\n");
-	fprintf(stderr, "s\tselect\n\n");
+	fprintf(stderr, "s\tselect\n");
+	fprintf(stderr, "k\tkqueue\n\n");
 	fprintf(stderr, "Possible options for intr-config:\n\n");
 	fprintf(stderr, "no\tno interrupt\n");
 	fprintf(stderr, "ll\t level low\n");
@@ -189,6 +191,53 @@ run_select(bool loop, int handle, char *file, int timeout)
 	} while (loop);
 }
 
+void
+run_kqueue(bool loop, int handle, char *file, int timeout)
+{
+	struct kevent event[1];
+	struct kevent tevent[1];
+	int kq = -1;
+	int nev = -1;
+	struct timespec tv;
+	struct timespec *tv_ptr;
+	int res;
+
+	if (timeout != INFTIM) {
+		tv.tv_sec = timeout / 1000;
+		tv.tv_nsec = (timeout % 1000) * 10000000;
+		tv_ptr = &tv;
+	} else {
+		tv_ptr = NULL;
+	}
+
+	kq = kqueue();
+	if (kq == -1)
+		err(EXIT_FAILURE, "kqueue() %s", file);
+
+	EV_SET(&event[0], handle, EVFILT_READ, EV_ADD, 0, 0, NULL);
+	nev = kevent(kq, event, 1, NULL, 0, NULL);
+	if (nev == -1)
+		err(EXIT_FAILURE, "kevent() %s", file);
+
+	do {
+		nev = kevent(kq, NULL, 0, tevent, 1, tv_ptr);
+		if (nev == -1) {
+			err(EXIT_FAILURE, "kevent() %s", file);
+		} else if (nev == 0) {
+			printf("%s: kevent() timed out on %s\n", getprogname(),
+			    file);
+		} else {
+			printf("%s: kevent() returned %i events (flags: %d) on "
+			    "%s\n", getprogname(), nev, tevent[0].flags, file);
+			if (tevent[0].flags & EV_EOF) {
+				err(EXIT_FAILURE, "Recieved EV_EOF on %s",
+				    file);
+			}
+			run_read(false, handle, file);
+		}
+	} while (loop);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -313,6 +362,8 @@ main(int argc, char *argv[])
 		run_poll(loop, handle, file, timeout);
 	case 's':
 		run_select(loop, handle, file, timeout);
+	case 'k':
+		run_kqueue(loop, handle, file, timeout);
 	default:
 		fprintf(stderr, "%s: Unknown method.\n", getprogname());
 		usage();
