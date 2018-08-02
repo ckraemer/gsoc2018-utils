@@ -3,6 +3,7 @@
 #include <limits.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <aio.h>
 #include <string.h>
 #include <stdbool.h>
 #include <errno.h>
@@ -23,7 +24,8 @@ usage()
 	fprintf(stderr, "r\tread (default)\n");
 	fprintf(stderr, "p\tpoll\n");
 	fprintf(stderr, "s\tselect\n");
-	fprintf(stderr, "k\tkqueue\n\n");
+	fprintf(stderr, "k\tkqueue\n");
+	fprintf(stderr, "a\taio_read\n\n");
 	fprintf(stderr, "Possible options for intr-config:\n\n");
 	fprintf(stderr, "no\tno interrupt\n");
 	fprintf(stderr, "ll\t level low\n");
@@ -100,11 +102,19 @@ print_events(short event)
 	}
 }
 
+uint32_t
+buffer_to_pin(char *buffer)
+{
+	/* Assuming little-endian */
+	return ((uint32_t)buffer[3] << 24 | (uint32_t)buffer[2] << 16 |
+	        (uint32_t)buffer[1] <<  8 | (uint32_t)buffer[0]);
+}
+
 void
 run_read(bool loop, int handle, char *file)
 {
 	ssize_t res;
-	char buffer[1024];
+	char buffer[4];
 	uint32_t pin;
 
 	do {
@@ -113,15 +123,11 @@ run_read(bool loop, int handle, char *file)
 			err(EXIT_FAILURE, "Cannot read from %s", file);
 
 		if (res == sizeof(pin)) {
-			/* Assuming little-endian */
-			pin = (uint32_t)buffer[3] << 24 |
-			    (uint32_t)buffer[2] << 16 |
-			    (uint32_t)buffer[1] << 8 |
-			    (uint32_t)buffer[0];
-			printf("%s: Interrupt on pin %d of %s\n", getprogname(),
-			    pin, file);
+			pin = buffer_to_pin(buffer);
+			printf("%s: read() interrupt on pin %d of %s\n",
+			    getprogname(), pin, file);
 		} else {
-			printf("%s: Read %i bytes from %s\n", getprogname(),
+			printf("%s: read() %i bytes from %s\n", getprogname(),
 			    res, file);
 		}
 	} while (loop);
@@ -234,6 +240,44 @@ run_kqueue(bool loop, int handle, char *file, int timeout)
 				    file);
 			}
 			run_read(false, handle, file);
+		}
+	} while (loop);
+}
+
+void
+run_aio_read(bool loop, int handle, char *file)
+{
+	int res;
+	char buffer[4];
+	struct aiocb iocb;
+	uint32_t pin;
+
+	bzero(&iocb, sizeof(iocb));
+
+	iocb.aio_fildes = handle;
+	iocb.aio_nbytes = sizeof(buffer);
+	iocb.aio_offset = 0;
+	iocb.aio_buf = buffer;
+
+	do {
+		res = aio_read(&iocb);
+		if (res < 0)
+		err(EXIT_FAILURE, "Cannot aio_read from %s", file);
+		do {
+			res = aio_error(&iocb);
+		} while (res == EINPROGRESS);
+		if (res < 0)
+			err(EXIT_FAILURE, "aio_error on %s", file);
+		res = aio_return(&iocb);
+		if (res < 0)
+			err(EXIT_FAILURE, "aio_return on %s", file);
+		if (res == sizeof(pin)) {
+			pin = buffer_to_pin(buffer);
+			printf("%s: aio_read() interrupt on pin %d of %s\n",
+			    getprogname(), pin, file);
+		} else {
+			printf("%s: aio_read() read %i bytes from %s\n",
+			    getprogname(), res, file);
 		}
 	} while (loop);
 }
@@ -364,6 +408,8 @@ main(int argc, char *argv[])
 		run_select(loop, handle, file, timeout);
 	case 'k':
 		run_kqueue(loop, handle, file, timeout);
+	case 'a':
+		run_aio_read(loop, handle, file);
 	default:
 		fprintf(stderr, "%s: Unknown method.\n", getprogname());
 		usage();
