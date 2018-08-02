@@ -3,6 +3,7 @@
 #include <limits.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <signal.h>
 #include <aio.h>
 #include <string.h>
 #include <stdbool.h>
@@ -15,6 +16,13 @@
 
 #include <libgpio.h>
 
+static volatile sig_atomic_t sigio = 0;
+
+static void
+sigio_handler(int sig){
+	sigio = 1;
+}
+
 void
 usage()
 {
@@ -25,7 +33,8 @@ usage()
 	fprintf(stderr, "p\tpoll\n");
 	fprintf(stderr, "s\tselect\n");
 	fprintf(stderr, "k\tkqueue\n");
-	fprintf(stderr, "a\taio_read\n\n");
+	fprintf(stderr, "a\taio_read\n");
+	fprintf(stderr, "i\tsignal-driven I/O\n\n");
 	fprintf(stderr, "Possible options for intr-config:\n\n");
 	fprintf(stderr, "no\tno interrupt\n");
 	fprintf(stderr, "ll\t level low\n");
@@ -282,6 +291,40 @@ run_aio_read(bool loop, int handle, char *file)
 	} while (loop);
 }
 
+
+void
+run_sigio(bool loop, int handle, char *file)
+{
+	int res;
+	struct sigaction sigact;
+	int flags;
+	int pid;
+
+	bzero(&sigact, sizeof(sigact));
+	sigact.sa_handler = sigio_handler;
+	if (sigaction(SIGIO, &sigact, NULL) < 0)
+		err(EXIT_FAILURE, "cannot set SIGIO handler on %s", file);
+	flags = fcntl(handle, F_GETFL);
+	flags |= O_ASYNC;
+	res = fcntl(handle, F_SETFL, flags);
+	if (res < 0)
+		err(EXIT_FAILURE, "fcntl(F_SETFL) on %s", file);
+	pid = getpid();
+	res = fcntl(handle, F_SETOWN, pid);
+	if (res < 0)
+		err(EXIT_FAILURE, "fnctl(F_SETOWN) on %s", file);
+
+	do {
+		if (sigio == 1) {
+			sigio = 0;
+			printf("%s: recieved SIGIO on %s\n", getprogname(),
+			    file);
+			run_read(false, handle, file);
+		}
+		pause();
+	} while (loop);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -410,6 +453,8 @@ main(int argc, char *argv[])
 		run_kqueue(loop, handle, file, timeout);
 	case 'a':
 		run_aio_read(loop, handle, file);
+	case 'i':
+		run_sigio(loop, handle, file);
 	default:
 		fprintf(stderr, "%s: Unknown method.\n", getprogname());
 		usage();
