@@ -445,16 +445,22 @@ main(int argc, char *argv[])
 	switch (method) {
 	case 'r':
 		run_read(loop, handle, file);
+		break;
 	case 'p':
 		run_poll(loop, handle, file, timeout);
+		break;
 	case 's':
 		run_select(loop, handle, file, timeout);
+		break;
 	case 'k':
 		run_kqueue(loop, handle, file, timeout);
+		break;
 	case 'a':
 		run_aio_read(loop, handle, file);
+		break;
 	case 'i':
 		run_sigio(loop, handle, file);
+		break;
 	default:
 		fprintf(stderr, "%s: Unknown method.\n", getprogname());
 		usage();
