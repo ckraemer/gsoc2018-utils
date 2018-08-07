@@ -26,8 +26,9 @@ sigio_handler(int sig){
 void
 usage()
 {
-	fprintf(stderr, "usage: %s [-f ctldev] [-m method] [-s] [-t timeout] "
-	    "pin intr-config [pin intr-config ...]\n\n", getprogname());
+	fprintf(stderr, "usage: %s [-f ctldev] [-m method] [-s] [-n] "
+	    "[-t timeout] pin intr-config [pin intr-config ...]\n\n",
+	    getprogname());
 	fprintf(stderr, "Possible options for method:\n\n");
 	fprintf(stderr, "r\tread (default)\n");
 	fprintf(stderr, "p\tpoll\n");
@@ -332,12 +333,14 @@ main(int argc, char *argv[])
 	char *file = "/dev/gpioc0";
 	char method = 'r';
 	bool loop = true;
+	bool nonblock = false;
+	int flags;
 	int timeout = INFTIM;
 	int handle;
 	int res;
 	gpio_config_t pin_config;
 
-	while ((ch = getopt(argc, argv, "f:m:st:")) != -1) {
+	while ((ch = getopt(argc, argv, "f:m:snt:")) != -1) {
 		switch (ch) {
 		case 'f':
 			file = optarg;
@@ -347,6 +350,9 @@ main(int argc, char *argv[])
 			break;
 		case 's':
 			loop = false;
+			break;
+		case 'n':
+			nonblock= true;
 			break;
 		case 't':
 			errno = 0;
@@ -389,6 +395,14 @@ main(int argc, char *argv[])
 	handle = gpio_open_device(file);
 	if (handle == GPIO_INVALID_HANDLE)
 		err(EXIT_FAILURE, "Cannot open %s", file);
+
+	if (nonblock == true) {
+		flags = fcntl(handle, F_GETFL);
+		flags |= O_NONBLOCK;
+		res = fcntl(handle, F_SETFL, flags);
+		if (res < 0)
+			err(EXIT_FAILURE, "cannot set O_NONBLOCK on %s", file);
+	}
 
 	for (int i = 0; i <= argc - 2; i += 2) {
 
